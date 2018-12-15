@@ -1,5 +1,8 @@
 import requests as req
 import re,time,os
+from bs4 import BeautifulSoup
+import json
+from PIL import Image
 
 class webSearch:
     
@@ -38,21 +41,63 @@ class reverseImageSearch:
 class imageSearch:
     def __init__(self,query):
         self.res = req.get('https://www.google.hr/search?q={}&source=lnms&tbm=isch'.format(query))
-        self.imgs = [i.split('src="')[1].split('"')[0] for i in re.findall('<img.*?width=',self.res.text)]
-    
-    def download(self,out_dir=os.getcwd()):
+       
+        def get_soup(url,header):
+            return BeautifulSoup(req.get(url,headers=header).text,'html.parser')
+
+        image_type="ActiOn"
+        query= query.split()
+        query='+'.join(query)
+        url="https://www.google.co.in/search?q="+query+"&source=lnms&tbm=isch"
+        print(url)
+        #add the directory for your image here
+        DIR="Pictures"
+        header={'User-Agent':"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.134 Safari/537.36"
+        }
+        soup = get_soup(url,header)
+
+
+        self.imgs=[]# contains the link for Large original images, type of  image
+        for a in soup.find_all("div",{"class":"rg_meta"}):
+            link , Type =json.loads(a.text)["ou"]  ,json.loads(a.text)["ity"]
+            self.imgs.append(link)
+
+    def download(self,num=5,out_dir=os.getcwd(),fname=None):
+
+        self.f_paths = []
         
         for i,url in enumerate(self.imgs):
+
+            if(i==num):
+                break
+
             r = req.get(url)
             ext = r.headers['Content-Type'].split('/')[1]
-            f = open(out_dir+'/'+str(i)+'.'+ext, 'wb')
+            path = os.path.join(out_dir,(fname if(fname) else '')+str(i)+'.'+ext)
+            f = open(path, 'wb')
             for chunk in r.iter_content(chunk_size=512 * 1024): 
                 if chunk: # filter out keep-alive new chunks
                     f.write(chunk)
                     
+            self.f_paths.append(path)
+
+
+    def scale_all(self,basewidth=128):
+
+        for img_path in self.f_paths:
+            img = Image.open(img_path)
+            wpercent = (basewidth/float(img.size[0]))
+            hsize = int((float(img.size[1])*float(wpercent)))
+            img = img.resize((basewidth,hsize), Image.ANTIALIAS)
+            img.save(img_path) 
+
+        
+
+
+#####----------------------------------------------------------------
 
 base_path = os.getcwd()
-file_dst = base_path+"\\"+"downlaoded_files"
+file_dst = os.path.join(base_path,"downlaoded_files")
 
 
 class Downloader:
@@ -71,7 +116,7 @@ class Downloader:
         def dwn(headers_ ,mode_):
             r = req.get(self.url, headers=headers_, stream=True)
             
-            with open(file_dst+"\\"+self.filename+'.'+ext, mode_) as f:
+            with open(os.path.join(file_dst,self.filename+'.'+ext), mode_) as f:
                 for chunk in r.iter_content(chunk_size=1000): 
                     if chunk: # filter out keep-alive new chunks
                         f.write(chunk)
@@ -83,13 +128,19 @@ class Downloader:
         filename = self.filename+'.'+ext
         
         
-        if(os.path.exists(file_dst+"\\"+filename)):
+        if(os.path.exists(os.path.join(file_dst,filename))):
 
             print('appending to file --',filename)
-            data = len(open(file_dst+"\\"+filename,'rb').read())
+            data = len(open(os.path.join(file_dst,filename),'rb').read())
             head = {"Range":"bytes={}-".format(data)}
             dwn(head ,'ab')
 
         else:
             print('creating a new file --',filename)
             dwn({},'wb')
+
+
+###################
+
+
+
