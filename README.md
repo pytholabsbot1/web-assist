@@ -35,6 +35,8 @@ imgs.imgs
 ##download 2 images 
 imgs.download(num='2')
 
+##scale them according to basewidth
+imgs.scale_all(128)
 ```
 
 # 3.Parse google news 
